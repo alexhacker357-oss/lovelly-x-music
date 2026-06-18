@@ -14,6 +14,8 @@
 # of this source code without permission is prohibited.
 # ==========================================================
 
+import asyncio  # Added for animation delays
+
 from pyrogram import enums, errors, filters, types
 
 from Elevenyts import app, config, db, lang
@@ -52,7 +54,8 @@ async def start(_, message: types.Message):
     """
     Handle /start command - welcome message for users.
 
-    - In private chat: Shows welcome message with inline buttons
+    - In private chat: Shows a short animation (heart reaction, 4 text messages,
+      sticker, then the main welcome message)
     - In group chat: Shows short welcome message
     - Adds new users to database
     - Sends log to logger group for new users
@@ -79,7 +82,46 @@ async def start(_, message: types.Message):
     # Determine if chat is private or group
     private = message.chat.type == enums.ChatType.PRIVATE
 
-    # Choose appropriate welcome message
+    # ------------------- PRIVATE CHAT ANIMATION -------------------
+    if private:
+        try:
+            # 1. React with ❤️ to the /start message
+            await message.react("❤️")
+
+            # 2. Define the four animated text messages (fancy style)
+            texts = [
+                "✨ Welcome to Lovelly X Music ✨",
+                "💖 The Best Music Bot on Telegram",
+                "🎵 Experience Studio Quality Audio",
+                "🌟 Powered by Yuvi"
+            ]
+
+            # Send each message with a 1‑second delay
+            msgs = []
+            for t in texts:
+                msg = await message.reply_text(f"<b>{t}</b>", quote=True)
+                msgs.append(msg)
+                await asyncio.sleep(1)
+
+            # Wait a moment, then delete all animation messages
+            await asyncio.sleep(0.5)
+            for msg in msgs:
+                await msg.delete()
+
+            # 3. Send the sticker (user‑provided ID)
+            sticker_msg = await message.reply_sticker(
+                "CAACAgUAAxkBAAERaWlqM8oSyTbecmsvA_xMewrsFsTtRQACXwUAAk6ziVbiBKNW8Go2RDwE"
+            )
+
+            # Wait 4 seconds before showing the main content
+            await asyncio.sleep(4)
+            # (Optionally delete the sticker after 4s, but we leave it)
+
+        except Exception as e:
+            # If anything fails (e.g., sticker unsupported), just log and continue
+            print(f"Start animation error: {e}")
+
+    # ------------------- MAIN WELCOME MESSAGE -------------------
     _text = (
         message.lang["start_pm"].format(message.from_user.first_name, app.name)
         if private
@@ -109,7 +151,7 @@ async def start(_, message: types.Message):
         # Log new user to logger group
         await utils.send_log(message)
         # Add user to database
-        return await db.add_user(message.from_user.id)
+        await db.add_user(message.from_user.id)
 
 
 @app.on_message(filters.command(["playmode", "settings"]) & filters.group & ~app.bl_users)
