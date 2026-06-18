@@ -14,7 +14,7 @@
 # of this source code without permission is prohibited.
 # ==========================================================
 
-import asyncio  # Added for animation delays
+import asyncio
 
 from pyrogram import enums, errors, filters, types
 
@@ -26,7 +26,6 @@ from Elevenyts.helpers import buttons, utils
 @lang.language()
 async def _help(_, m: types.Message):
     """Handle /help command in private chats - shows help menu with image."""
-    # Auto-delete command message
     try:
         await m.delete()
     except Exception:
@@ -34,13 +33,12 @@ async def _help(_, m: types.Message):
     
     try:
         await m.reply_photo(
-            photo=config.START_IMG,  # Use same image as start command
+            photo=config.START_IMG,
             caption=m.lang["help_menu"],
             reply_markup=buttons.help_markup(m.lang),
             quote=True,
         )
     except Exception:
-        # Fallback to text if photo fails
         await m.reply_text(
             text=m.lang["help_menu"],
             reply_markup=buttons.help_markup(m.lang),
@@ -68,19 +66,15 @@ async def start(_, message: types.Message):
         except Exception:
             pass
     
-    # Skip if message from channel or anonymous admin
     if not message.from_user:
         return
 
-    # Check if user is blacklisted
     if message.from_user.id in app.bl_users and message.from_user.id not in db.notified:
         return await message.reply_text(message.lang["bl_user_notify"])
 
-    # If /start help, show help menu
     if len(message.command) > 1 and message.command[1] == "help":
         return await _help(_, message)
 
-    # Determine if chat is private or group
     private = message.chat.type == enums.ChatType.PRIVATE
 
     # ------------------- PRIVATE CHAT ANIMATION -------------------
@@ -89,35 +83,47 @@ async def start(_, message: types.Message):
             # 1. React with ❤️ to the /start message
             await message.react("❤️")
 
-            # 2. Define the four animated text messages (fancy HTML)
-            texts = [
-                "✨ <b>Welcome to Lovelly X Music</b> ✨",
+            # 2. Four animated text messages with different styles
+            # First message: welcome with emojis
+            msgs = [
+                "🌟 <b>Welcome to Lovelly X Music</b> 🌟",
                 "💖 <b>The Best Music Bot</b> on Telegram",
                 "🎵 <b>Studio‑Quality Audio</b> Streaming",
-                "🌟 Powered by <a href='https://t.me/X_yuvii'>Yuvi</a>"
+                "✨ Powered by <a href='https://t.me/X_yuvii'>Yuvi</a> ✨"
             ]
 
-            # Send each message, wait 1 sec, then delete it (so they vanish)
-            for t in texts:
-                msg = await message.reply_text(t, quote=True)
+            # Send each with a 1‑second pause and delete
+            for text in msgs:
+                msg = await message.reply_text(text, quote=True)
                 await asyncio.sleep(1)
                 await msg.delete()
 
-            # 3. Send the sticker (provided ID)
+            # 3. Show a "loading" animation with dots (progressive)
+            loading_msgs = [
+                "⏳ Loading",
+                "⏳ Loading.",
+                "⏳ Loading..",
+                "⏳ Loading..."
+            ]
+            for txt in loading_msgs:
+                msg = await message.reply_text(txt, quote=True)
+                await asyncio.sleep(0.5)
+                await msg.delete()
+
+            # 4. Send the sticker (provided ID)
             sticker_msg = await message.reply_sticker(
                 "CAACAgUAAxkBAAERaWlqM8oSyTbecmsvA_xMewrsFsTtRQACXwUAAk6ziVbiBKNW8Go2RDwE"
             )
 
-            # Wait 4 seconds while the sticker is visible, then delete it
+            # Wait 4 seconds, then delete the sticker
             await asyncio.sleep(4)
             await sticker_msg.delete()
 
         except Exception as e:
-            # If animation fails, log but continue to main message
+            # Log error but continue to main message
             print(f"Start animation error: {e}")
 
     # ------------------- MAIN WELCOME MESSAGE -------------------
-    # Choose appropriate welcome message
     _text = (
         message.lang["start_pm"].format(message.from_user.first_name, app.name)
         if private
@@ -133,7 +139,6 @@ async def start(_, message: types.Message):
             quote=not private,
         )
     except errors.ChatSendPhotosForbidden:
-        # If photos are not allowed, send text only
         await message.reply_text(
             text=_text,
             reply_markup=key,
@@ -143,31 +148,21 @@ async def start(_, message: types.Message):
     # For private chats, add user to database if new
     if private:
         if await db.is_user(message.from_user.id):
-            return  # User already exists, no need to add
-        # Log new user to logger group
+            return
         await utils.send_log(message)
-        # Add user to database
         return await db.add_user(message.from_user.id)
 
 
 @app.on_message(filters.command(["playmode", "settings"]) & filters.group & ~app.bl_users)
 @lang.language()
 async def settings(_, message: types.Message):
-    """
-    Handle /playmode or /settings command - show group settings.
-
-    Displays:
-    - Play mode (everyone or admin only)
-    - Current language
-    - Options to change settings
-    """
-    # Auto-delete command message
+    """Handle /playmode or /settings command - show group settings."""
     try:
         await message.delete()
     except Exception:
         pass
     
-    admin_only = await db.get_play_mode(message.chat.id)  # Get play mode setting
+    admin_only = await db.get_play_mode(message.chat.id)
     _language = "en"
     await utils.safe_text(
         message,
@@ -182,20 +177,12 @@ async def settings(_, message: types.Message):
 @app.on_message(filters.new_chat_members, group=7)
 @lang.language()
 async def _new_member(_, message: types.Message):
-    """
-    Handle new member events - detect when bot is added to groups.
-
-    - Leaves non-supergroup chats
-    - Adds new groups to database
-    """
-    # Only work in supergroups (not basic groups)
+    """Handle new member events - detect when bot is added to groups."""
     if message.chat.type != enums.ChatType.SUPERGROUP:
         return await message.chat.leave()
 
-    # Check each new member
     for member in message.new_chat_members:
-        if member.id == app.id:  # Bot itself was added
+        if member.id == app.id:
             if await db.is_chat(message.chat.id):
-                return  # Chat already in database
-            # Add chat to database (log is sent from new_chat.py with photo)
+                return
             await db.add_chat(message.chat.id)
