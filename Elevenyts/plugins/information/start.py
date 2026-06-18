@@ -54,8 +54,9 @@ async def start(_, message: types.Message):
     """
     Handle /start command - welcome message for users.
 
-    - In private chat: Shows animation (heart reaction, 4 text messages,
-      sticker for 4 sec, then main welcome)
+    - In private chat: Shows animation (heart reaction, 4 text messages
+      that vanish one by one, sticker that stays 4 sec then vanishes,
+      then main welcome)
     - In group chat: Shows short welcome message
     - Adds new users to database
     - Sends log to logger group for new users
@@ -88,9 +89,9 @@ async def start(_, message: types.Message):
             # 1. React with ❤️ to the /start message
             await message.react("❤️")
 
-            # 2. Define the four animated text messages (fancy style)
+            # 2. Define the four animated text messages (fancy HTML)
             texts = [
-                "✨ Welcome to <b>Lovelly X Music</b> ✨",
+                "✨ <b>Welcome to Lovelly X Music</b> ✨",
                 "💖 <b>The Best Music Bot</b> on Telegram",
                 "🎵 <b>Studio‑Quality Audio</b> Streaming",
                 "🌟 Powered by <a href='https://t.me/X_yuvii'>Yuvi</a>"
@@ -107,9 +108,9 @@ async def start(_, message: types.Message):
                 "CAACAgUAAxkBAAERaWlqM8oSyTbecmsvA_xMewrsFsTtRQACXwUAAk6ziVbiBKNW8Go2RDwE"
             )
 
-            # Wait 4 seconds while the sticker is visible
+            # Wait 4 seconds while the sticker is visible, then delete it
             await asyncio.sleep(4)
-            # (We keep the sticker, it will stay; we don't delete it)
+            await sticker_msg.delete()
 
         except Exception as e:
             # If animation fails, log but continue to main message
