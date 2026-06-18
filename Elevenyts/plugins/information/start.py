@@ -84,7 +84,6 @@ async def start(_, message: types.Message):
             await message.react("❤️")
 
             # 2. Four animated text messages with different styles
-            # First message: welcome with emojis
             msgs = [
                 "🌟 <b>Welcome to Lovelly X Music</b> 🌟",
                 "💖 <b>The Best Music Bot</b> on Telegram",
@@ -98,19 +97,7 @@ async def start(_, message: types.Message):
                 await asyncio.sleep(1)
                 await msg.delete()
 
-            # 3. Show a "loading" animation with dots (progressive)
-            loading_msgs = [
-                "⏳ Loading",
-                "⏳ Loading.",
-                "⏳ Loading..",
-                "⏳ Loading..."
-            ]
-            for txt in loading_msgs:
-                msg = await message.reply_text(txt, quote=True)
-                await asyncio.sleep(0.5)
-                await msg.delete()
-
-            # 4. Send the sticker (provided ID)
+            # 3. Send the sticker (provided ID)
             sticker_msg = await message.reply_sticker(
                 "CAACAgUAAxkBAAERaWlqM8oSyTbecmsvA_xMewrsFsTtRQACXwUAAk6ziVbiBKNW8Go2RDwE"
             )
