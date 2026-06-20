@@ -66,6 +66,8 @@ class Config:
 
         # YouTube Cookies
         self.COOKIES_URL: List[str] = self._parse_cookies()
+        # ✅ Step 2: Cookies File Path (local file)
+        self.COOKIE_FILE: str = getenv("COOKIE_FILE", "cookies.txt")
 
         # Images
         self.DEFAULT_THUMB: str = getenv("DEFAULT_THUMB", "https://files.catbox.moe/c8ozs3.jpeg")
