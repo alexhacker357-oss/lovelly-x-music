@@ -110,32 +110,56 @@ class YouTube:
 
     def get_cookies(self):
         """
-        Return the primary cookie file (from config) if it exists,
-        otherwise fallback to random cookies from Elevenyts/cookies/ directory.
+        Smart cookie file finder:
+        1. Check the configured path (self.cookie_file) relative to cwd.
+        2. If not found, check the directory where this file is located (Elevenyts/) and its parent.
+        3. If still not found, fallback to legacy random files from Elevenyts/cookies/.
         """
-        # Try primary cookie file
-        if self.cookie_file and os.path.isfile(self.cookie_file):
-            logger.debug(f"Using primary cookie file: {self.cookie_file}")
-            return self.cookie_file
+        # List of possible filenames to try (including the configured one and common names)
+        possible_names = [self.cookie_file] if self.cookie_file else []
+        possible_names.extend(["cookies.txt", "www.youtube.com_cookies.txt", "cookie.txt"])
+        # Remove duplicates and None
+        possible_names = list(dict.fromkeys([name for name in possible_names if name]))
 
-        # Fallback to legacy directory-based cookies
+        # Get current script directory (where this file is: /app/Elevenyts/)
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(script_dir)
+
+        # Possible base directories to search
+        base_dirs = [
+            os.getcwd(),          # current working directory (usually /app/)
+            parent_dir,           # parent of Elevenyts (i.e., /app/)
+            script_dir,           # Elevenyts/ directory
+        ]
+
+        # Try each combination
+        for base in base_dirs:
+            for name in possible_names:
+                path = os.path.join(base, name)
+                if os.path.isfile(path) and os.path.getsize(path) > 50:
+                    logger.info(f"🍪 Found cookie file: {path}")
+                    return path
+
+        # If still not found, fallback to legacy random files from Elevenyts/cookies/
         if not self.checked:
-            cookies_dir = "Elevenyts/cookies"
+            cookies_dir = os.path.join(script_dir, "cookies")
             if os.path.exists(cookies_dir):
                 for file in os.listdir(cookies_dir):
                     if file.endswith(".txt"):
                         self.cookies.append(file)
             self.checked = True
         
-        if not self.cookies:
-            if not self.warned:
-                self.warned = True
-                logger.warning("🍪 No cookie file found; downloads might fail.")
-            return None
-        
-        cookie_file = f"Elevenyts/cookies/{random.choice(self.cookies)}"
-        logger.debug(f"Using random cookie file: {cookie_file}")
-        return cookie_file
+        if self.cookies:
+            cookie_file = os.path.join(script_dir, "cookies", random.choice(self.cookies))
+            logger.info(f"🍪 Using random cookie file: {cookie_file}")
+            return cookie_file
+
+        # No cookies found
+        if not self.warned:
+            self.warned = True
+            logger.warning("🍪 No cookie file found; downloads might fail. "
+                           "Please place cookies.txt in the root directory or set COOKIE_FILE in .env")
+        return None
 
     async def save_cookies(self, urls: list[str]) -> None:
         """Save cookies from URLs to files."""
@@ -143,7 +167,8 @@ class YouTube:
         saved_count = 0
         
         # Create cookies directory if not exists
-        cookies_dir = Path("Elevenyts/cookies")
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        cookies_dir = Path(script_dir) / "cookies"
         cookies_dir.mkdir(parents=True, exist_ok=True)
         
         for url in urls:
@@ -382,7 +407,7 @@ class YouTube:
                 return None
 
         async with self._download_semaphore:
-            # 🆕 Get cookie file path (primary or fallback)
+            # 🆕 Get cookie file path (smart search)
             cookie = self.get_cookies()
             base_opts = {
                 "outtmpl": "downloads/%(id)s.%(ext)s",
@@ -623,7 +648,7 @@ class YouTube:
         # For live streams, only cookies method works
         if is_live:
             logger.info(f"🔴 Live stream detected for {video_id}, using cookies method...")
-            # 🆕 Get cookie file path
+            # 🆕 Get cookie file path (smart search)
             cookie = self.get_cookies()
             ydl_opts = {
                 "quiet": True,
