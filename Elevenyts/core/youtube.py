@@ -48,6 +48,9 @@ class YouTube:
         self.api_timeout = config.API_TIMEOUT
         self.api_stream_timeout = config.API_STREAM_TIMEOUT
 
+        # 🆕 Primary cookie file from config (default: "cookies.txt")
+        self.cookie_file = config.COOKIE_FILE
+
         # Regular expression to match YouTube URLs
         self.regex = re.compile(
             r"(https?://)?(www\.|m\.|music\.)?"
@@ -72,6 +75,7 @@ class YouTube:
             else:
                 logger.warning("⚠️ No API Key configured!")
         logger.info(f"🍪 Cookies Fallback: {'ENABLED' if self.enable_cookies_fallback else 'DISABLED'}")
+        logger.info(f"🍪 Cookie file: {self.cookie_file if self.cookie_file else 'None'}")
         logger.info("=" * 50)
 
     def _locate_download_file(self, video_id: str, video: bool = False) -> Optional[str]:
@@ -105,7 +109,16 @@ class YouTube:
         return None
 
     def get_cookies(self):
-        """Get random cookie file from cookies directory."""
+        """
+        Return the primary cookie file (from config) if it exists,
+        otherwise fallback to random cookies from Elevenyts/cookies/ directory.
+        """
+        # Try primary cookie file
+        if self.cookie_file and os.path.isfile(self.cookie_file):
+            logger.debug(f"Using primary cookie file: {self.cookie_file}")
+            return self.cookie_file
+
+        # Fallback to legacy directory-based cookies
         if not self.checked:
             cookies_dir = "Elevenyts/cookies"
             if os.path.exists(cookies_dir):
@@ -117,11 +130,11 @@ class YouTube:
         if not self.cookies:
             if not self.warned:
                 self.warned = True
-                logger.warning("🍪 Cookies are missing; downloads might fail.")
+                logger.warning("🍪 No cookie file found; downloads might fail.")
             return None
         
         cookie_file = f"Elevenyts/cookies/{random.choice(self.cookies)}"
-        logger.debug(f"Using cookie file: {cookie_file}")
+        logger.debug(f"Using random cookie file: {cookie_file}")
         return cookie_file
 
     async def save_cookies(self, urls: list[str]) -> None:
@@ -369,6 +382,7 @@ class YouTube:
                 return None
 
         async with self._download_semaphore:
+            # 🆕 Get cookie file path (primary or fallback)
             cookie = self.get_cookies()
             base_opts = {
                 "outtmpl": "downloads/%(id)s.%(ext)s",
@@ -417,10 +431,10 @@ class YouTube:
                     "postprocessors": [],
                 }
 
-            ydl_opts_cookie = {
-                **ydl_opts,
-                "cookiefile": cookie,
-            }
+            # Add cookies to options if available
+            ydl_opts_cookie = {**ydl_opts}
+            if cookie:
+                ydl_opts_cookie["cookiefile"] = cookie
 
             def _download(ydl_runtime_opts):
                 ydl_instance = None
@@ -609,11 +623,11 @@ class YouTube:
         # For live streams, only cookies method works
         if is_live:
             logger.info(f"🔴 Live stream detected for {video_id}, using cookies method...")
+            # 🆕 Get cookie file path
             cookie = self.get_cookies()
             ydl_opts = {
                 "quiet": True,
                 "no_warnings": True,
-                "cookiefile": cookie,
                 "format": "bestaudio/best",
                 "noplaylist": True,
                 "socket_timeout": 20,
@@ -621,6 +635,8 @@ class YouTube:
                 "sleep_interval_requests": 1,
                 "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
             }
+            if cookie:
+                ydl_opts["cookiefile"] = cookie
 
             def _extract_url():
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
